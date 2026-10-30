@@ -1,0 +1,69 @@
+{
+  "gradedLate": {
+    "id": "5001",
+    "name": "Lab 4",
+    "html_url": "https://canvas.uw.edu/courses/1033000001/assignments/5001",
+    "due_at": "2026-10-20T06:59:00Z",
+    "unlock_at": null,
+    "lock_at": null,
+    "points_possible": 20,
+    "grading_type": "points",
+    "submission_types": ["online_upload"],
+    "published": true,
+    "submission": {
+      "workflow_state": "graded",
+      "submitted_at": "2026-10-21T01:00:00Z",
+      "graded_at": "2026-10-22T18:00:00Z",
+      "posted_at": "2026-10-22T18:05:00Z",
+      "score": 18,
+      "grade": "18",
+      "late": true,
+      "missing": false,
+      "excused": false
+    }
+  },
+  "passFailIncomplete": {
+    "id": "5002",
+    "name": "Reading check",
+    "html_url": "https://canvas.uw.edu/courses/1033000001/assignments/5002",
+    "due_at": "2026-10-25T06:59:00Z",
+    "unlock_at": null,
+    "lock_at": null,
+    "points_possible": 5,
+    "grading_type": "pass_fail",
+    "submission_types": ["online_text_entry"],
+    "published": true,
+    "submission": {
+      "workflow_state": "graded",
+      "submitted_at": "2026-10-24T20:00:00Z",
+      "graded_at": "2026-10-26T18:00:00Z",
+      "score": 0,
+      "grade": "incomplete",
+      "late": false,
+      "missing": false,
+      "excused": false
+    }
+  },
+  "noSubmissionNoDue": {
+    "id": "5003",
+    "name": "Participation",
+    "html_url": "https://canvas.uw.edu/courses/1033000001/assignments/5003",
+    "due_at": null,
+    "unlock_at": null,
+    "lock_at": null,
+    "points_possible": null,
+    "submission_types": ["none"],
+    "published": true
+  },
+  "unpublished": {
+    "id": "5004",
+    "name": "Draft",
+    "html_url": "https://canvas.uw.edu/courses/1033000001/assignments/5004",
+    "due_at": null,
+    "unlock_at": null,
+    "lock_at": null,
+    "points_possible": 1,
+    "submission_types": ["online_upload"],
+    "published": false
+  }
+}
