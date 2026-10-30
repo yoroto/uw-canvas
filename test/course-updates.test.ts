@@ -21,13 +21,14 @@ function stub(routes: Record<string, unknown | Handler | Error>, courses = cours
   const calls: Stub['calls'] = []
   const answer = (path: string, query: Record<string, unknown>): unknown => {
     calls.push({ path, query })
-    const key = path === '/api/v1/courses' ? path : path.replace(/\/courses\/\d+\//, '/courses/:id/')
+    const key = path === '/api/v1/courses' ? path : path.replace(/\/courses\/\d+\//, '/courses/:id/').replace(/\/conversations\/\d+$/, '/conversations/:id')
     const r = key === '/api/v1/courses' ? courses : routes[key]
     if (r instanceof Error) throw r
     if (typeof r === 'function') return (r as Handler)(query)
     return r ?? []
   }
   const client = {
+    get: async (path: string, query: Record<string, unknown> = {}) => answer(path, query),
     getAll: async (path: string, query: Record<string, unknown> = {}) => answer(path, query),
     getRecent: async (path: string, query: Record<string, unknown> = {}, isOld: (x: never) => boolean = () => false) => {
       const list = answer(path, query) as never[]
@@ -173,6 +174,103 @@ describe('listCourseUpdates: problems', () => {
     const res = await listCourseUpdates(client, now)
     expect(res.events.map((e) => e.title)).toEqual(['Newer', 'Older'])
     expect(res.since).toBe('2026-09-29T20:00:00.000Z')
+  })
+})
+
+describe('listCourseUpdates: inbox', () => {
+  const ME = '900'
+  const conversations = [
+    { id: '1', subject: 'Question about Lab 4', last_message_at: recent(1), context_name: 'Course 1' },
+    { id: '2', subject: null, last_message_at: recent(2), context_name: 'Some other group' },
+    { id: '3', subject: 'Ancient thread', last_message_at: recent(60), context_name: 'Course 1' }
+  ]
+  const thread1 = {
+    participants: [{ id: 900, name: 'Me' }, { id: 77, name: 'Dr. Rivera' }],
+    messages: [
+      { id: 'm3', created_at: recent(1), body: 'Yes, that works.\n\nSee you Thursday.', author_id: 77 },
+      { id: 'm2', created_at: recent(1.5), body: 'Can I hand it in Friday?', author_id: 900 },
+      { id: 'm1', created_at: recent(3), body: 'Lab 4 is due Wednesday.', author_id: 77 },
+      { id: 'sys', created_at: recent(3), body: 'Dr. Rivera was added', author_id: 77, generated: true }
+    ]
+  }
+  const thread2 = { participants: [{ id: 5, name: 'TA Sam' }], messages: [{ id: 'm9', created_at: recent(2), body: '', author_id: 5 }] }
+
+  const routes = () => ({
+    '/api/v1/users/self': { id: ME },
+    '/api/v1/conversations': conversations
+  })
+
+  /** A stub whose conversation details depend on the conversation id in the path. */
+  function inboxStub() {
+    const byId: Record<string, unknown> = { '1': thread1, '2': thread2 }
+    const base = stub(routes())
+    const original = base.client.get.bind(base.client) as (path: string, query?: Record<string, unknown>) => Promise<unknown>
+    ;(base.client as unknown as { get: unknown }).get = async (path: string, query: Record<string, unknown> = {}) => {
+      const m = path.match(/\/conversations\/(\d+)$/)
+      if (m) {
+        base.calls.push({ path, query })
+        return byId[m[1]]
+      }
+      return original(path, query)
+    }
+    return base
+  }
+
+  it('lists messages other people sent, one event each, without your own or system notes', async () => {
+    const { client } = inboxStub()
+    const res = await listCourseUpdates(client, now)
+    const inbox = res.events.filter((e) => e.kind === 'message')
+    expect(inbox.map((e) => [e.id, e.title, e.detail])).toEqual([
+      ['message:1:m3', 'Question about Lab 4', 'Dr. Rivera: Yes, that works. See you Thursday.'],
+      ['message:2:m9', '(No subject)', 'TA Sam'],
+      ['message:1:m1', 'Question about Lab 4', 'Dr. Rivera: Lab 4 is due Wednesday.']
+    ])
+  })
+
+  it('keeps showing an earlier message after you replied in the same thread', async () => {
+    const { client } = inboxStub()
+    const res = await listCourseUpdates(client, now)
+    expect(res.events.some((e) => e.id === 'message:1:m1')).toBe(true)
+  })
+
+  it('takes the course from the conversation when its name matches, and links to the conversation', async () => {
+    const { client } = inboxStub()
+    const res = await listCourseUpdates(client, now)
+    const first = res.events.find((e) => e.id === 'message:1:m3')!
+    expect(first).toMatchObject({ courseId: '1', courseName: 'Course 1', url: 'https://canvas.uw.edu/conversations/1' })
+    const other = res.events.find((e) => e.id === 'message:2:m9')!
+    expect(other).toMatchObject({ courseId: '', courseName: 'Some other group' })
+  })
+
+  it('never marks a conversation as read, and skips threads with no news', async () => {
+    const { client, calls } = inboxStub()
+    await listCourseUpdates(client, now)
+    const opened = calls.filter((c) => /\/conversations\/\d+$/.test(c.path))
+    expect(opened.map((c) => c.path)).toEqual(['/api/v1/conversations/1', '/api/v1/conversations/2'])
+    for (const c of opened) expect(c.query).toEqual({ auto_mark_as_read: false })
+  })
+
+  it('opens a conversation again only when it has a newer message', async () => {
+    const { client, calls } = inboxStub()
+    let clock = now.getTime()
+    const svc = new UpdatesService(client, () => clock)
+    const opens = (): number => calls.filter((c) => /\/conversations\/\d+$/.test(c.path)).length
+    await svc.list(true)
+    expect(opens()).toBe(2)
+    clock += 60_000
+    await svc.list(true)
+    expect(opens()).toBe(2) // nothing changed: remembered
+    conversations[0] = { ...conversations[0], last_message_at: recent(0.5) }
+    await svc.list(true)
+    expect(opens()).toBe(3)
+    conversations[0] = { id: '1', subject: 'Question about Lab 4', last_message_at: recent(1), context_name: 'Course 1' }
+  })
+
+  it('quietly skips the inbox when Canvas will not show it, and reports other failures', async () => {
+    const hidden = stub({ '/api/v1/conversations': new CanvasError('unauthenticated', 'unauthorized', 401) })
+    expect((await listCourseUpdates(hidden.client, now)).errors).toEqual([])
+    const broken = stub({ '/api/v1/users/self': { id: ME }, '/api/v1/conversations': new CanvasError('http', 'Canvas returned 500', 500) })
+    expect((await listCourseUpdates(broken.client, now)).errors).toEqual([{ courseName: 'Inbox', source: 'inbox', message: 'Canvas returned 500' }])
   })
 })
 

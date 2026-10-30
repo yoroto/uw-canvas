@@ -55,6 +55,24 @@ interface RawTopic {
   discussion_subentry_count?: number
 }
 
+interface RawConversation {
+  id: string
+  subject?: string | null
+  last_message_at?: string | null
+  context_name?: string | null
+}
+
+interface RawThread {
+  participants?: { id: string | number; name?: string | null }[]
+  messages?: { id: string | number; created_at?: string | null; body?: string | null; author_id?: string | number | null; generated?: boolean }[]
+}
+
+/** The messages of one inbox conversation, as events; remembered until the conversation gets a newer message. */
+interface CachedThread {
+  lastMessageAt: string
+  events: UpdateEvent[]
+}
+
 interface RawFile {
   id: string
   display_name?: string | null
@@ -74,6 +92,7 @@ interface RawPage {
 }
 
 const ms = (iso: string): number => new Date(iso).getTime()
+const SNIPPET_CHARS = 160
 const day = (t: number): string => new Date(t).toISOString().slice(0, 10)
 
 /** A course does not offer a source (Files turned off, no access): not worth showing as an error. */
@@ -87,7 +106,12 @@ function isUnavailable(e: unknown): boolean {
  * days, across the user's active courses, as one result per source. A source
  * that fails for one course does not hide the rest.
  */
-async function fetchSources(client: CanvasClient, now: Date, days: number): Promise<{ results: SourceResult[]; sinceMs: number }> {
+async function fetchSources(
+  client: CanvasClient,
+  now: Date,
+  days: number,
+  threadCache: Map<string, CachedThread>
+): Promise<{ results: SourceResult[]; sinceMs: number }> {
   const sinceMs = now.getTime() - days * DAY_MS
   const isOld = (iso: string | null | undefined): boolean => !iso || ms(iso) < sinceMs
   const courses: Course[] = await listActiveCourses(client)
@@ -206,7 +230,58 @@ async function fetchSources(client: CanvasClient, now: Date, days: number): Prom
     })
   }
 
+  // The inbox: messages other people sent you. Only the latest message of a conversation is in the list,
+  // so each conversation with news is opened (without marking it as read) to list its messages one by one.
+  await run('inbox', 'Inbox', 'inbox', async () => {
+    const selfId = String((await client.get<{ id: string | number }>('/api/v1/users/self')).id)
+    const list = await client.getRecent<RawConversation>('/api/v1/conversations', {}, (last) => isOld(last.last_message_at))
+    const out: UpdateEvent[] = []
+    const seen = new Set<string>()
+    for (const c of list) {
+      if (!c.last_message_at || isOld(c.last_message_at)) continue
+      const id = String(c.id)
+      seen.add(id)
+      let cached = threadCache.get(id)
+      if (!cached || cached.lastMessageAt !== c.last_message_at) {
+        try {
+          // auto_mark_as_read=false: looking must never change anything in Canvas.
+          const thread = await client.get<RawThread>(`/api/v1/conversations/${id}`, { auto_mark_as_read: false })
+          cached = { lastMessageAt: c.last_message_at, events: threadEvents(thread, c, selfId, courses) }
+          threadCache.set(id, cached)
+        } catch (e) {
+          if (!isUnavailable(e) || (e instanceof CanvasError && e.code === 'unauthenticated' && e.status !== 401)) throw e
+          if (!cached) continue // this one conversation cannot be read; the others still can
+        }
+      }
+      out.push(...cached.events.filter((e) => !isOld(e.at)))
+    }
+    for (const id of threadCache.keys()) if (!seen.has(id)) threadCache.delete(id)
+    return out
+  })
+
   return { results, sinceMs }
+}
+
+function threadEvents(thread: RawThread, conversation: RawConversation, selfId: string, courses: readonly Course[]): UpdateEvent[] {
+  const names = new Map((thread.participants ?? []).map((p) => [String(p.id), p.name?.trim() || 'Someone']))
+  const course = conversation.context_name ? courses.find((c) => c.name === conversation.context_name) : undefined
+  const events: UpdateEvent[] = []
+  for (const m of thread.messages ?? []) {
+    if (m.generated || !m.created_at || String(m.author_id) === selfId) continue // system notes and your own messages
+    const text = (m.body ?? '').replace(/\s+/g, ' ').trim().slice(0, SNIPPET_CHARS)
+    const from = names.get(String(m.author_id)) ?? 'Someone'
+    events.push({
+      id: `message:${conversation.id}:${m.id}`,
+      kind: 'message',
+      at: m.created_at,
+      title: conversation.subject?.trim() || '(No subject)',
+      courseId: course?.id ?? '',
+      courseName: course?.name ?? conversation.context_name?.trim() ?? 'Inbox',
+      url: `${CANVAS_ORIGIN}/conversations/${conversation.id}`,
+      detail: text ? `${from}: ${text}` : from
+    })
+  }
+  return events
 }
 
 /**
@@ -259,7 +334,7 @@ export function combineSources(
 
 /** One load of the course updates, without memory of earlier loads. */
 export async function listCourseUpdates(client: CanvasClient, now: Date, days = UPDATE_DAYS): Promise<CourseUpdates> {
-  const { results, sinceMs } = await fetchSources(client, now, days)
+  const { results, sinceMs } = await fetchSources(client, now, days, new Map())
   return combineSources(results, new Map(), sinceMs, now)
 }
 
@@ -267,6 +342,7 @@ export async function listCourseUpdates(client: CanvasClient, now: Date, days = 
 export class UpdatesService {
   private cached: { at: number; value: CourseUpdates } | null = null
   private readonly remembered = new Map<string, Remembered>()
+  private readonly threads = new Map<string, CachedThread>()
 
   constructor(
     private readonly client: CanvasClient,
@@ -276,7 +352,7 @@ export class UpdatesService {
   async list(force: boolean): Promise<CourseUpdates> {
     if (!force && this.cached && this.now() - this.cached.at < CACHE_MS) return this.cached.value
     const started = new Date(this.now())
-    const { results, sinceMs } = await fetchSources(this.client, started, UPDATE_DAYS)
+    const { results, sinceMs } = await fetchSources(this.client, started, UPDATE_DAYS, this.threads)
     const value = combineSources(results, this.remembered, sinceMs, started)
     this.cached = { at: this.now(), value }
     return value

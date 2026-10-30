@@ -9,6 +9,7 @@ export type UpdateKind =
   | 'available'
   | 'assignment-updated'
   | 'announcement'
+  | 'message'
   | 'discussion'
   | 'discussion-reply'
   | 'file'
@@ -50,6 +51,7 @@ export const UPDATE_KINDS: Record<UpdateKind, { label: string; tone: UpdateTone 
   available: { label: 'Available', tone: 'schedule' },
   'assignment-updated': { label: 'Assignment updated', tone: 'schedule' },
   announcement: { label: 'Announcement', tone: 'post' },
+  message: { label: 'Inbox message', tone: 'comment' },
   discussion: { label: 'Discussion', tone: 'post' },
   'discussion-reply': { label: 'New reply', tone: 'post' },
   file: { label: 'File', tone: 'material' },

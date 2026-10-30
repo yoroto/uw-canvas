@@ -96,6 +96,6 @@ describe('updatesForDay', () => {
 describe('UPDATE_KINDS', () => {
   it('labels every kind', () => {
     for (const info of Object.values(UPDATE_KINDS)) expect(info.label.length).toBeGreaterThan(0)
-    expect(Object.keys(UPDATE_KINDS)).toHaveLength(10)
+    expect(Object.keys(UPDATE_KINDS)).toHaveLength(11)
   })
 })
