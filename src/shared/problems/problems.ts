@@ -42,7 +42,7 @@ export const PROBLEMS: ProblemDef[] = [
     title: 'Incomplete',
     description: 'Pass/fail work marked incomplete (✗). Newest first.',
     matches: (c) => notExcused(c) && c.item.gradingType === 'pass_fail' && c.item.grade === 'incomplete',
-    reason: () => 'Cross score',
+    reason: () => 'Incomplete',
     compare: (a, b) => (ms(b.item.gradedAt) ?? 0) - (ms(a.item.gradedAt) ?? 0)
   },
   {

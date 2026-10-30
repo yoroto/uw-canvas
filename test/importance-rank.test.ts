@@ -53,7 +53,7 @@ describe('rankAssignments, default rules', () => {
       later: null,
       undated: null,
       fb: 'New feedback',
-      cross: 'Cross score',
+      cross: 'Incomplete',
       sub: null,
       'g-new': null,
       'g-old': null

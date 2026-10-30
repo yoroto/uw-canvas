@@ -77,7 +77,7 @@ export const RULES: RuleDef[] = [
     description: 'A pass/fail assignment marked incomplete (✗). Newest first.',
     zone: 'turnedIn',
     matches: (c) => c.item.gradingType === 'pass_fail' && c.item.grade === 'incomplete',
-    reason: () => 'Cross score',
+    reason: () => 'Incomplete',
     compare: gradedDesc
   }
 ]

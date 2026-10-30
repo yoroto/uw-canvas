@@ -65,7 +65,7 @@ describe('findProblems', () => {
     expect(reasons).toMatchObject({
       'miss-old': 'Overdue 9d',
       'miss-new': 'Overdue 16h',
-      cross: 'Cross score',
+      cross: 'Incomplete',
       'late-new': 'Late 27h',
       'red-low': 'Score 10%'
     })
