@@ -72,12 +72,12 @@ function stubClient(failures: Record<string, Error> = {}, commentFailures: Recor
 
 describe('summariseComments', () => {
   it("ignores the student's own comments and finds the latest other one", () => {
-    expect(summariseComments(comments, SELF)).toEqual({ count: 2, lastId: 'c3', lastAt: '2026-10-23T09:00:00Z' })
+    expect(summariseComments(comments, SELF)).toMatchObject({ count: 2, lastId: 'c3', lastAt: '2026-10-23T09:00:00Z' })
   })
 
   it('handles none / null', () => {
-    expect(summariseComments([], SELF)).toEqual({ count: 0, lastId: null, lastAt: null })
-    expect(summariseComments(null, SELF)).toEqual({ count: 0, lastId: null, lastAt: null })
+    expect(summariseComments([], SELF)).toEqual({ count: 0, lastId: null, lastAt: null, items: [] })
+    expect(summariseComments(null, SELF)).toEqual({ count: 0, lastId: null, lastAt: null, items: [] })
   })
 })
 

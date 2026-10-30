@@ -1,8 +1,8 @@
-import type { AssignmentView, AssignmentsResult, FailedCourse } from '../../shared/assignments/types'
+import type { AssignmentComment, AssignmentView, AssignmentsResult, FailedCourse } from '../../shared/assignments/types'
 import type { Course } from '../../shared/types'
 import { CanvasError } from '../errors'
 import type { CanvasClient } from './CanvasClient'
-import { listCourses } from './courses'
+import { listActiveCourses } from './courses'
 
 interface RawSubmission {
   workflow_state?: string
@@ -23,6 +23,7 @@ interface RawAssignment {
   due_at: string | null
   unlock_at: string | null
   lock_at: string | null
+  updated_at?: string | null
   points_possible: number | null
   grading_type?: string
   submission_types?: string[]
@@ -35,6 +36,7 @@ export interface RawComment {
   id: string
   author_id: string
   created_at: string
+  comment?: string | null
 }
 
 /** One entry of GET /courses/:id/students/submissions (only what we read). */
@@ -47,6 +49,8 @@ export interface CommentSummary {
   count: number
   lastId: string | null
   lastAt: string | null
+  /** Oldest first. */
+  items: AssignmentComment[]
 }
 
 type CourseRef = Pick<Course, 'id'> & { name: string }
@@ -58,7 +62,10 @@ export function summariseComments(comments: RawComment[] | null | undefined, sel
     (best, c) => (best === null || new Date(c.created_at) > new Date(best.created_at) ? c : best),
     null
   )
-  return { count: others.length, lastId: last?.id ?? null, lastAt: last?.created_at ?? null }
+  const items = others
+    .map((c) => ({ id: c.id, at: c.created_at, text: (c.comment ?? '').trim().slice(0, 200) }))
+    .sort((a, b) => a.at.localeCompare(b.at))
+  return { count: others.length, lastId: last?.id ?? null, lastAt: last?.created_at ?? null, items }
 }
 
 /** `comments` null/undefined = could not be loaded (fields become null = unknown). */
@@ -74,6 +81,7 @@ export function normaliseAssignment(raw: RawAssignment, course: CourseRef, comme
     dueAt: raw.due_at ?? null,
     unlockAt: raw.unlock_at ?? null,
     lockAt: raw.lock_at ?? null,
+    updatedAt: raw.updated_at ?? null,
     pointsPossible: raw.points_possible ?? null,
     gradingType: raw.grading_type ?? 'points',
     submissionTypes: raw.submission_types ?? [],
@@ -88,7 +96,8 @@ export function normaliseAssignment(raw: RawAssignment, course: CourseRef, comme
     excused: s.excused ?? false,
     commentCount: comments ? comments.count : null,
     lastCommentId: comments ? comments.lastId : null,
-    lastCommentAt: comments ? comments.lastAt : null
+    lastCommentAt: comments ? comments.lastAt : null,
+    comments: comments ? comments.items : null
   }
 }
 
@@ -103,9 +112,7 @@ const isExpired = (e: unknown): e is CanvasError => e instanceof CanvasError && 
 // comments). A failing course is reported, not fatal, except when the session
 // has expired. If only the comments fail, assignments are kept with unknown comments.
 export async function listAssignments(client: CanvasClient): Promise<AssignmentsResult> {
-  const courses = (await listCourses(client)).filter(
-    (c): c is Course & { name: string } => !!c.name && !c.access_restricted_by_date && c.workflow_state === 'available'
-  )
+  const courses = await listActiveCourses(client)
   const selfId = (await client.get<{ id: string }>('/api/v1/users/self')).id
 
   const settled = await Promise.all(

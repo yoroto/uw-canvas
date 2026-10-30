@@ -11,6 +11,8 @@ import type { CalEvent, DayFeedEvents, FeedInfo, PlacedEvent } from '../../share
 import { resolveDay } from '../../shared/schedule/schedule'
 import type { ScheduleFile } from '../../shared/schedule/types'
 import { AssignmentChip } from './AssignmentChip'
+import { assignmentUpdates, updatesForDay, type CourseUpdates } from '../../shared/updates/updates'
+import { UpdatesPanel } from './UpdatesPanel'
 import { FeedsManager } from './FeedsManager'
 
 const schedule = scheduleData as unknown as ScheduleFile
@@ -32,9 +34,13 @@ interface Props {
   now: Date
   /** Changes whenever the header Refresh button is pressed: re-download the feeds too. */
   refreshTick: number
+  /** Announcements, discussions, files and pages (loaded by App, so they survive switching tabs). */
+  courseUpdates: CourseUpdates | null
+  updatesLoading: boolean
+  updatesError: string | null
 }
 
-export function Daily({ items, hues, now, refreshTick }: Props): React.JSX.Element {
+export function Daily({ items, hues, now, refreshTick, courseUpdates, updatesLoading, updatesError }: Props): React.JSX.Element {
   const todayKey = dayKeyOf(now)
   const [date, setDate] = useState(todayKey)
   const [feeds, setFeeds] = useState<FeedInfo[]>([])
@@ -62,6 +68,7 @@ export function Daily({ items, hues, now, refreshTick }: Props): React.JSX.Eleme
     void window.canvas.feeds.refresh().then(() => setReload((n) => n + 1))
   }, [refreshTick])
 
+
   // Feed events for the chosen day; reloads when the day, the feeds or Refresh change.
   useEffect(() => {
     let cancelled = false
@@ -84,6 +91,10 @@ export function Daily({ items, hues, now, refreshTick }: Props): React.JSX.Eleme
       cancelled = true
     }
   }, [date, feeds, reload])
+
+  const assignmentEvents = useMemo(() => assignmentUpdates(items), [items])
+  const dayUpdates = useMemo(() => updatesForDay([...assignmentEvents, ...(courseUpdates?.events ?? [])], date), [assignmentEvents, courseUpdates, date])
+  const beyondReach = courseUpdates !== null && dayRange(date).to.getTime() <= new Date(courseUpdates.since).getTime()
 
   const feedColor = useMemo(() => new Map(feeds.map((f) => [f.id, f.color])), [feeds])
   const { from: dayStart, to: dayEnd } = useMemo(() => dayRange(date), [date])
@@ -156,87 +167,104 @@ export function Daily({ items, hues, now, refreshTick }: Props): React.JSX.Eleme
         </p>
       ))}
 
-      <div className="daily-scroll" ref={scrollRef}>
-        <div className="daily-heads">
-          <div />
-          <div className="head">
-            <strong>Schedule</strong>
-            {calendar.closed && <span className="banner">No school{calendar.label ? `: ${calendar.label}` : ''}</span>}
-            {!calendar.closed && calendar.label && <span className="banner info">{calendar.label}</span>}
-            {calendar.allDay.map((e) => (
-              <span key={e.id} className="all-day" style={{ '--c': e.feedId ? feedColor.get(e.feedId) : undefined } as React.CSSProperties}>
-                {e.title}
+      <div className="daily-body">
+        <div className="daily-scroll" ref={scrollRef}>
+          <div className="daily-heads">
+            <div />
+            <div className="head">
+              <strong>Schedule</strong>
+              {calendar.closed && <span className="banner">No school{calendar.label ? `: ${calendar.label}` : ''}</span>}
+              {!calendar.closed && calendar.label && <span className="banner info">{calendar.label}</span>}
+              {calendar.allDay.map((e) => (
+                <span key={e.id} className="all-day" style={{ '--c': e.feedId ? feedColor.get(e.feedId) : undefined } as React.CSSProperties}>
+                  {e.title}
+                </span>
+              ))}
+            </div>
+            <div className="head">
+              <strong>Assignments</strong>
+              <span className="hint">
+                {timed.length} due{carried.length ? ` · ${carried.length} more soon after` : ''}
               </span>
-            ))}
-          </div>
-          <div className="head">
-            <strong>Assignments</strong>
-            <span className="hint">
-              {timed.length} due{carried.length ? ` · ${carried.length} more soon after` : ''}
-            </span>
-          </div>
-        </div>
-
-        <div className="daily-grid" style={{ height: gridHeight }}>
-          {HOURS.map((h) => (
-            <div key={h} className="hour" style={{ top: h * HOUR_PX }}>
-              <span className="hour-label">{h === 0 ? '' : hourLabel(h)}</span>
             </div>
-          ))}
-
-          <div className="col col-left">
-            {calendar.hours && !calendar.closed && (
-              <>
-                <div className="off-hours" style={{ top: 0, height: y(calendar.hours.opens) }} />
-                <div className="off-hours" style={{ top: y(calendar.hours.closes), bottom: 0 }} />
-              </>
-            )}
-            {left.map((p) => (
-              <EventBlock key={p.event.id} placed={p} color={p.event.feedId ? feedColor.get(p.event.feedId) : undefined} y={y} />
-            ))}
           </div>
 
-          <div className="col col-right">
-            <div className="deadlines">
-              {right.map((p) => {
-                const bottom = y(p.event.due)
-                return (
-                  <AssignmentChip
-                    key={p.event.item.key}
-                    a={p.event}
-                    hue={hues.get(p.event.item.courseId) ?? 210}
-                    style={{
-                      top: Math.max(0, bottom - CHIP_H),
-                      height: CHIP_H,
-                      left: `${(p.column / p.columns) * 100}%`,
-                      width: `calc(${100 / p.columns}% - 3px)`
-                    }}
-                  />
-                )
-              })}
+          <div className="daily-grid" style={{ height: gridHeight }}>
+            {HOURS.map((h) => (
+              <div key={h} className="hour" style={{ top: h * HOUR_PX }}>
+                <span className="hour-label">{h === 0 ? '' : hourLabel(h)}</span>
+              </div>
+            ))}
+
+            <div className="col col-left">
+              {calendar.hours && !calendar.closed && (
+                <>
+                  <div className="off-hours" style={{ top: 0, height: y(calendar.hours.opens) }} />
+                  <div className="off-hours" style={{ top: y(calendar.hours.closes), bottom: 0 }} />
+                </>
+              )}
+              {left.map((p) => (
+                <EventBlock key={p.event.id} placed={p} color={p.event.feedId ? feedColor.get(p.event.feedId) : undefined} y={y} />
+              ))}
             </div>
-            {carried.length > 0 && (
-              <div className="lane" style={{ top: laneTop }}>
-                <div className="lane-title">Also due soon</div>
-                {carried.map((a, i) => (
-                  <AssignmentChip
-                    key={a.item.key}
-                    a={a}
-                    hue={hues.get(a.item.courseId) ?? 210}
-                    carried
-                    style={{ top: 18 + i * (CARRIED_H + CARRIED_GAP), height: CARRIED_H }}
-                  />
-                ))}
+
+            <div className="col col-right">
+              <div className="deadlines">
+                {right.map((p) => {
+                  const bottom = y(p.event.due)
+                  return (
+                    <AssignmentChip
+                      key={p.event.item.key}
+                      a={p.event}
+                      hue={hues.get(p.event.item.courseId) ?? 210}
+                      style={{
+                        top: Math.max(0, bottom - CHIP_H),
+                        height: CHIP_H,
+                        left: `${(p.column / p.columns) * 100}%`,
+                        width: `calc(${100 / p.columns}% - 3px)`
+                      }}
+                    />
+                  )
+                })}
+              </div>
+              {carried.length > 0 && (
+                <div className="lane" style={{ top: laneTop }}>
+                  <div className="lane-title">Also due soon</div>
+                  {carried.map((a, i) => (
+                    <AssignmentChip
+                      key={a.item.key}
+                      a={a}
+                      hue={hues.get(a.item.courseId) ?? 210}
+                      carried
+                      style={{ top: 18 + i * (CARRIED_H + CARRIED_GAP), height: CARRIED_H }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {isToday && (
+              <div className="now-line" style={{ top: y(now) }}>
+                <span>{timeText(now)}</span>
               </div>
             )}
           </div>
-
-          {isToday && (
-            <div className="now-line" style={{ top: y(now) }}>
-              <span>{timeText(now)}</span>
-            </div>
-          )}
         </div>
+
+        <UpdatesPanel
+          events={dayUpdates}
+          loading={updatesLoading}
+          errors={courseUpdates?.errors ?? []}
+          hues={hues}
+          loadedAt={courseUpdates?.fetchedAt ?? null}
+          note={
+            updatesError
+              ? `Could not load course updates: ${updatesError}`
+              : beyondReach
+                ? 'Announcements, discussions, files and pages are only loaded for the last 30 days.'
+                : null
+          }
+        />
       </div>
     </div>
   )

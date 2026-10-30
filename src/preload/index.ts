@@ -22,6 +22,9 @@ const bridge: CanvasBridge = {
     remove: (id) => ipcRenderer.invoke(Channels.feedsRemove, id),
     refresh: () => ipcRenderer.invoke(Channels.feedsRefresh),
     events: (date) => ipcRenderer.invoke(Channels.feedsEvents, date)
+  },
+  updates: {
+    list: (force) => ipcRenderer.invoke(Channels.updatesList, force)
   }
 }
 

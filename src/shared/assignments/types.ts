@@ -1,6 +1,15 @@
 // Normalised assignment + the user's submission, as the UI and tests see it.
 // IDs are strings (see Course in ../types.ts).
 
+/** A comment by someone other than the student (usually teacher feedback). */
+export interface AssignmentComment {
+  id: string
+  /** ISO time the comment was posted. */
+  at: string
+  /** The start of the comment text (up to 200 characters). */
+  text: string
+}
+
 export interface AssignmentView {
   /** `${courseId}:${id}`, unique across courses. */
   key: string
@@ -12,6 +21,8 @@ export interface AssignmentView {
   dueAt: string | null
   unlockAt: string | null
   lockAt: string | null
+  /** When the assignment itself was last modified (Canvas `updated_at`). */
+  updatedAt: string | null
   pointsPossible: number | null
   /** points | pass_fail | percent | letter_grade | gpa_scale | not_graded */
   gradingType: string
@@ -33,6 +44,8 @@ export interface AssignmentView {
   commentCount: number | null
   lastCommentId: string | null
   lastCommentAt: string | null
+  /** The comments with their times, oldest first. null = could not be loaded. */
+  comments: AssignmentComment[] | null
 }
 
 /** What the user has already seen of a submission; a difference means "changed since last looked". */

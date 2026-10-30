@@ -805,3 +805,142 @@ button.seen {
   flex-direction: column;
   gap: 6px;
 }
+
+/* Daily view: Updates column */
+
+.daily-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 12px;
+}
+
+.daily-body .daily-scroll {
+  flex: 1;
+  min-width: 0;
+}
+
+.updates {
+  flex: none;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.updates-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.updates-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.updates-body ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pad-x {
+  padding: 4px 12px;
+  margin: 0;
+}
+
+.update {
+  display: flex;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  border-left: 4px solid hsl(var(--h) 65% 52%);
+  font-size: 12px;
+}
+
+.update-time {
+  flex: none;
+  width: 58px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.update-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.update-main a {
+  color: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.update-main a:hover {
+  text-decoration: underline;
+}
+
+.update-kind {
+  align-self: flex-start;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tone-grade .update-kind {
+  background: var(--chip-good-bg);
+  color: var(--chip-good-fg);
+}
+
+.tone-comment .update-kind {
+  background: #0a7aff22;
+  color: var(--now);
+}
+
+.tone-schedule .update-kind {
+  background: var(--chip-warn-bg);
+  color: var(--chip-warn-fg);
+}
+
+.tone-post .update-kind {
+  background: #af52de22;
+  color: #af52de;
+}
+
+.tone-material .update-kind {
+  background: var(--chip-muted-bg);
+  color: var(--chip-muted-fg);
+}
+
+.update-course {
+  font-weight: 650;
+  color: hsl(var(--h) 65% 36%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .update-course {
+    color: hsl(var(--h) 80% 72%);
+  }
+}
+
+.update-detail {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.updates-sub {
+  padding: 3px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}

@@ -14,6 +14,7 @@ export function makeAssignment(over: Partial<AssignmentView> = {}): AssignmentVi
     dueAt: null,
     unlockAt: null,
     lockAt: null,
+    updatedAt: null,
     pointsPossible: 10,
     gradingType: 'points',
     submissionTypes: ['online_upload'],
@@ -29,6 +30,7 @@ export function makeAssignment(over: Partial<AssignmentView> = {}): AssignmentVi
     commentCount: 0,
     lastCommentId: null,
     lastCommentAt: null,
+    comments: [],
     ...over
   }
 }

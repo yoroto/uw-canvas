@@ -11,6 +11,10 @@ interface ClientOptions {
   perPage?: number
   /** Safety cap on pagination. */
   maxPages?: number
+  /** When Canvas reports fewer than this many requests left in its rate-limit bucket, slow down. */
+  lowQuotaRemaining?: number
+  /** The pause between requests while the quota is low. */
+  lowQuotaGapMs?: number
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
@@ -24,6 +28,9 @@ export class CanvasClient {
   private readonly minGapMs: number
   private readonly perPage: number
   private readonly maxPages: number
+  private readonly lowQuotaRemaining: number
+  private readonly lowQuotaGapMs: number
+  private lowQuota = false
 
   constructor(
     private readonly auth: AuthProvider,
@@ -32,6 +39,8 @@ export class CanvasClient {
     this.minGapMs = opts.minGapMs ?? 150
     this.perPage = opts.perPage ?? 100
     this.maxPages = opts.maxPages ?? 100
+    this.lowQuotaRemaining = opts.lowQuotaRemaining ?? 100
+    this.lowQuotaGapMs = opts.lowQuotaGapMs ?? 1500
   }
 
   /** Single request. `path` is relative to the Canvas origin, e.g. `/api/v1/users/self`. */
@@ -51,6 +60,23 @@ export class CanvasClient {
     return all
   }
 
+  /**
+   * Like `getAll`, for lists sorted newest first: stops after the page whose
+   * last item `isOld` says is past the cutoff (at most `maxPages` pages), so
+   * long histories are not downloaded in full.
+   */
+  async getRecent<T>(path: string, query: Query, isOld: (lastItem: T) => boolean, maxPages = 3): Promise<T[]> {
+    const all: T[] = []
+    let url: string | null = this.buildUrl(path, { per_page: this.perPage, ...query })
+    for (let page = 0; url && page < maxPages; page++) {
+      const res: { body: T[]; next: string | null } = await this.request<T[]>(url)
+      all.push(...res.body)
+      if (res.body.length > 0 && isOld(res.body[res.body.length - 1])) break
+      url = res.next
+    }
+    return all
+  }
+
   private buildUrl(path: string, query: Query): string {
     if (!path.startsWith('/api/v1/')) {
       throw new CanvasError('unknown', `Not a Canvas API path: ${path}`)
@@ -65,13 +91,11 @@ export class CanvasClient {
     return url.toString()
   }
 
-  // Serialise requests with a minimum gap between them.
+  // Serialise requests with a minimum gap between them (longer while Canvas says the quota is low).
   private schedule<T>(fn: () => Promise<T>): Promise<T> {
     const run = this.queue.then(fn)
-    this.queue = run.then(
-      () => sleep(this.minGapMs),
-      () => sleep(this.minGapMs)
-    )
+    const pause = (): Promise<void> => sleep(this.lowQuota ? this.lowQuotaGapMs : this.minGapMs)
+    this.queue = run.then(pause, pause)
     return run
   }
 
@@ -82,9 +106,16 @@ export class CanvasClient {
         headers: { Accept: 'application/json+canvas-string-ids' }
       })
 
+      // Canvas tells us how much of its rate-limit bucket is left; ease off before it runs out.
+      const remaining = res.headers.get('x-rate-limit-remaining')
+      if (remaining !== null && Number.isFinite(Number(remaining))) this.lowQuota = Number(remaining) < this.lowQuotaRemaining
+
       // With redirect: 'manual', an expired session shows up as 401 or a redirect to login.
       if (res.status === 401 || (res.status >= 300 && res.status < 400) || res.type === 'opaqueredirect') {
         throw new CanvasError('unauthenticated', 'Not signed in to Canvas', res.status)
+      }
+      if (res.status === 403 && /rate limit/i.test(await res.text().catch(() => ''))) {
+        throw new CanvasError('rate-limit', 'Canvas is limiting requests right now; wait a minute and refresh', 403)
       }
       if (!res.ok) {
         throw new CanvasError('http', `Canvas returned ${res.status} for ${new URL(url).pathname}`, res.status)

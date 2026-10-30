@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { courseOptions, filterByCourses } from '../../shared/assignments/courses'
 import type { AssignmentsPayload } from '../../shared/assignments/types'
+import type { CourseUpdates } from '../../shared/updates/updates'
 import { DEFAULT_GRADE_SORT, type GradeSort } from '../../shared/grades/grades'
 import type { IpcResult } from '../../shared/types'
 import { CourseFilter } from './CourseFilter'
@@ -9,6 +10,9 @@ import { GradeSortFilter } from './GradeSortFilter'
 import { Grades } from './Grades'
 import { Problems } from './Problems'
 import { Timeline } from './Timeline'
+
+/** While the Daily tab is open, everything is refreshed this often (same as pressing Refresh). */
+const AUTO_REFRESH_MS = 15 * 60 * 1000
 
 type Phase = 'loading' | 'signedOut' | 'signedIn'
 type View = 'daily' | 'timeline' | 'problems' | 'grades'
@@ -24,6 +28,12 @@ export function App(): React.JSX.Element {
   const [now, setNow] = useState(() => new Date())
   // Bumped by the Refresh button, only while the Daily tab is showing, so it also re-downloads the calendar feeds.
   const [refreshTick, setRefreshTick] = useState(0)
+  // Course updates (announcements, discussions, files, pages) live here so they survive switching tabs
+  // and the previous results stay on screen while a new load runs.
+  const [courseUpdates, setCourseUpdates] = useState<CourseUpdates | null>(null)
+  const [updatesLoading, setUpdatesLoading] = useState(false)
+  const [updatesError, setUpdatesError] = useState<string | null>(null)
+  const updatesRequest = useRef(0)
   const [gradeSort, setGradeSort] = useState<GradeSort>(DEFAULT_GRADE_SORT)
   // Timeline: deselected course ids. Everything is shown by default, including courses that show up later.
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
@@ -63,11 +73,60 @@ export function App(): React.JSX.Element {
     }
   }, [run])
 
+  const loadUpdates = useCallback(async (force: boolean) => {
+    const mine = ++updatesRequest.current
+    setUpdatesLoading(true)
+    try {
+      const res = await window.canvas.updates.list(force)
+      if (mine !== updatesRequest.current) return // a newer load has started
+      if (res.ok) {
+        setCourseUpdates(res.data)
+        setUpdatesError(null)
+      } else if (res.error.code === 'unauthenticated') {
+        setPhase('signedOut')
+      } else {
+        setUpdatesError(res.error.message)
+      }
+    } finally {
+      if (mine === updatesRequest.current) setUpdatesLoading(false)
+    }
+  }, [])
+
+  // The Refresh button: reload the assignments and, on the Daily tab, the calendar feeds and course updates too.
+  const refresh = useCallback(() => {
+    if (view === 'daily') {
+      setRefreshTick((n) => n + 1)
+      void loadUpdates(true)
+    }
+    void load()
+  }, [view, load, loadUpdates])
+
+  // Opening the Daily tab loads the course updates (from the 10-minute cache if it is fresh enough).
+  useEffect(() => {
+    if (phase === 'signedIn' && view === 'daily') void loadUpdates(false)
+  }, [phase, view, loadUpdates])
+
+  // Do the same automatically every 15 minutes while the Daily tab is showing (skipping a round if a load is running).
+  const refreshRef = useRef(refresh)
+  const busyRef = useRef(busy)
+  refreshRef.current = refresh
+  busyRef.current = busy
+  useEffect(() => {
+    if (phase !== 'signedIn' || view !== 'daily') return
+    const id = setInterval(() => {
+      if (!busyRef.current) refreshRef.current()
+    }, AUTO_REFRESH_MS)
+    return () => clearInterval(id)
+  }, [phase, view])
+
   const applyStatus = useCallback(
     async (signedIn: boolean) => {
       setPhase(signedIn ? 'signedIn' : 'signedOut')
       if (signedIn) await load()
-      else setData(null)
+      else {
+        setData(null)
+        setCourseUpdates(null)
+      }
     },
     [load]
   )
@@ -106,13 +165,7 @@ export function App(): React.JSX.Element {
             {busy && <span className="hint">Loading…</span>}
             {view === 'timeline' && <CourseFilter courses={courses} hidden={hidden} onChange={setHidden} />}
             {view === 'grades' && <GradeSortFilter value={gradeSort} onChange={setGradeSort} />}
-            <button
-              onClick={() => {
-                if (view === 'daily') setRefreshTick((n) => n + 1)
-                void load()
-              }}
-              disabled={busy}
-            >
+            <button onClick={refresh} disabled={busy}>
               Refresh
             </button>
             <button onClick={() => void signOut()} disabled={busy}>
@@ -147,7 +200,15 @@ export function App(): React.JSX.Element {
           <Timeline items={visibleItems} hues={hues} now={now} />
         </>
       )}
-      {phase === 'signedIn' && view === 'daily' && <Daily items={data?.items ?? []} hues={hues} now={now} refreshTick={refreshTick} />}
+      {phase === 'signedIn' && view === 'daily' && <Daily
+          items={data?.items ?? []}
+          hues={hues}
+          now={now}
+          refreshTick={refreshTick}
+          courseUpdates={courseUpdates}
+          updatesLoading={updatesLoading}
+          updatesError={updatesError}
+        />}
       {phase === 'signedIn' && data && view === 'problems' && <Problems items={data.items} hues={hues} now={now} />}
       {phase === 'signedIn' && data && view === 'grades' && <Grades items={data.items} hues={hues} now={now} sort={gradeSort} />}
     </main>

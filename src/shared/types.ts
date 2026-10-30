@@ -1,6 +1,7 @@
 // Types and IPC contract shared by main, preload and renderer.
 import type { AssignmentsPayload, Fingerprint } from './assignments/types'
 import type { DayFeedEvents, FeedInfo } from './daily/types'
+import type { CourseUpdates } from './updates/updates'
 
 export interface Term {
   id: string
@@ -28,7 +29,7 @@ export interface AuthStatus {
   signedIn: boolean
 }
 
-export type ErrorCode = 'unauthenticated' | 'http' | 'network' | 'parse' | 'unknown'
+export type ErrorCode = 'unauthenticated' | 'rate-limit' | 'http' | 'network' | 'parse' | 'unknown'
 
 export type IpcResult<T> =
   | { ok: true; data: T }
@@ -45,7 +46,8 @@ export const Channels = {
   feedsAdd: 'feeds:add',
   feedsRemove: 'feeds:remove',
   feedsRefresh: 'feeds:refresh',
-  feedsEvents: 'feeds:events'
+  feedsEvents: 'feeds:events',
+  updatesList: 'updates:list'
 } as const
 
 // What the renderer sees as `window.canvas`. Add one entry per feature.
@@ -74,5 +76,9 @@ export interface CanvasBridge {
     refresh(): Promise<IpcResult<null>>
     /** Feed events touching a day (YYYY-MM-DD), plus per-feed errors. */
     events(date: string): Promise<IpcResult<DayFeedEvents>>
+  }
+  updates: {
+    /** Announcements, discussions, files and pages changed in the last 30 days. `force` skips the 10-minute cache. */
+    list(force: boolean): Promise<IpcResult<CourseUpdates>>
   }
 }

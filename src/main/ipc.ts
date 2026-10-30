@@ -5,6 +5,7 @@ import { listAssignments } from './canvas/assignments'
 import { listCourses } from './canvas/courses'
 import type { CanvasClient } from './canvas/CanvasClient'
 import { CanvasError } from './errors'
+import type { UpdatesService } from './canvas/updates'
 import type { FeedService } from './feeds/feedService'
 import type { SeenStore } from './store/seenStore'
 
@@ -41,7 +42,7 @@ function asDate(value: unknown): string {
 }
 
 /** One line per feature: register new endpoints here and in `CanvasBridge`. */
-export function registerIpc(auth: AuthProvider, client: CanvasClient, seenStore: SeenStore, feeds: FeedService): void {
+export function registerIpc(auth: AuthProvider, client: CanvasClient, seenStore: SeenStore, feeds: FeedService, updates: UpdatesService): void {
   handle(Channels.authStatus, async () => ({ signedIn: await auth.isSignedIn() }))
   handle(Channels.authLogin, async () => ({ signedIn: await auth.signIn() }))
   handle(Channels.authLogout, async () => {
@@ -64,4 +65,6 @@ export function registerIpc(auth: AuthProvider, client: CanvasClient, seenStore:
     return null
   })
   handle(Channels.feedsEvents, (date: unknown) => feeds.eventsForDay(asDate(date)))
+
+  handle(Channels.updatesList, (force: unknown) => updates.list(force === true))
 }
