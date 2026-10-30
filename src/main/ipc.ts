@@ -5,6 +5,7 @@ import { listAssignments } from './canvas/assignments'
 import { listCourses } from './canvas/courses'
 import type { CanvasClient } from './canvas/CanvasClient'
 import { CanvasError } from './errors'
+import type { FeedService } from './feeds/feedService'
 import type { SeenStore } from './store/seenStore'
 
 // Wraps a handler so errors cross the IPC boundary as plain data.
@@ -29,8 +30,18 @@ function asStringArray(value: unknown): string[] {
   return value
 }
 
+function asString(value: unknown, what: string): string {
+  if (typeof value !== 'string') throw new CanvasError('unknown', `Expected ${what} to be text`)
+  return value
+}
+
+function asDate(value: unknown): string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new CanvasError('unknown', 'Expected a date as YYYY-MM-DD')
+  return value
+}
+
 /** One line per feature: register new endpoints here and in `CanvasBridge`. */
-export function registerIpc(auth: AuthProvider, client: CanvasClient, seenStore: SeenStore): void {
+export function registerIpc(auth: AuthProvider, client: CanvasClient, seenStore: SeenStore, feeds: FeedService): void {
   handle(Channels.authStatus, async () => ({ signedIn: await auth.isSignedIn() }))
   handle(Channels.authLogin, async () => ({ signedIn: await auth.signIn() }))
   handle(Channels.authLogout, async () => {
@@ -44,4 +55,13 @@ export function registerIpc(auth: AuthProvider, client: CanvasClient, seenStore:
     return { ...result, seen: seenStore.reconcile(result.items) }
   })
   handle(Channels.seenMark, async (keys: unknown) => seenStore.markSeen(asStringArray(keys)))
+
+  handle(Channels.feedsList, async () => feeds.list())
+  handle(Channels.feedsAdd, (name: unknown, url: unknown) => feeds.add(asString(name, 'name'), asString(url, 'url')))
+  handle(Channels.feedsRemove, async (id: unknown) => feeds.remove(asString(id, 'id')))
+  handle(Channels.feedsRefresh, async () => {
+    feeds.refresh()
+    return null
+  })
+  handle(Channels.feedsEvents, (date: unknown) => feeds.eventsForDay(asDate(date)))
 }

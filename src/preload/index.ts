@@ -15,6 +15,13 @@ const bridge: CanvasBridge = {
   },
   seen: {
     mark: (keys) => ipcRenderer.invoke(Channels.seenMark, keys)
+  },
+  feeds: {
+    list: () => ipcRenderer.invoke(Channels.feedsList),
+    add: (name, url) => ipcRenderer.invoke(Channels.feedsAdd, name, url),
+    remove: (id) => ipcRenderer.invoke(Channels.feedsRemove, id),
+    refresh: () => ipcRenderer.invoke(Channels.feedsRefresh),
+    events: (date) => ipcRenderer.invoke(Channels.feedsEvents, date)
   }
 }
 

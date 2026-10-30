@@ -22,6 +22,11 @@ export const DUE_SOON_MS = 48 * 60 * 60 * 1000
 // Submission types that never produce a submission in Canvas.
 const NO_SUBMISSION_TYPES = new Set(['none', 'on_paper', 'not_graded'])
 
+/** True unless the assignment can never be submitted online (nothing to turn in, or handed in on paper). */
+export function requiresSubmission(a: AssignmentView): boolean {
+  return !(a.submissionTypes.length > 0 && a.submissionTypes.every((s) => NO_SUBMISSION_TYPES.has(s)))
+}
+
 const time = (iso: string | null): number | null => (iso ? new Date(iso).getTime() : null)
 
 export function deriveStatus(a: AssignmentView, now: Date): Status {
@@ -36,9 +41,7 @@ export function deriveStatus(a: AssignmentView, now: Date): Status {
 
   if (a.workflowState === 'graded' || a.gradedAt) return { primary: 'graded', flags }
 
-  if (a.submissionTypes.length > 0 && a.submissionTypes.every((s) => NO_SUBMISSION_TYPES.has(s))) {
-    return { primary: 'no-submission', flags: [] }
-  }
+  if (!requiresSubmission(a)) return { primary: 'no-submission', flags: [] }
 
   if (a.submittedAt || a.workflowState === 'submitted' || a.workflowState === 'pending_review') {
     return { primary: 'submitted', flags }

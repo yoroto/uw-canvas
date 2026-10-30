@@ -4,6 +4,7 @@ A personal macOS desktop app (Electron + React + TypeScript) that shows your ass
 
 ## Views
 
+- **Daily**: one chosen day as two calendar columns on a shared hour axis, like the macOS Calendar day view. The left column merges the weekly class schedule (`data/schedule.json`) with your calendar feeds; overlapping events sit side by side. The right column shows that day's assignments at their deadline time, with a green check for submitted work and an orange (red when past due) "!" for outstanding work. Assignments due soon after the day are also listed in a dashed "Also due soon" lane from 9 PM down: weekdays carry tomorrow's deadlines until noon, and Saturday and Sunday carry everything until Monday noon. A drop-down at the top picks the day; the **Calendars** button adds or removes `webcal://` / `https://` feeds.
 - **Timeline**: every assignment in due-date order, with a "Now" line in the middle (past above, upcoming below, no-due-date at the bottom). Each row shows due date, submitted time, status (Missing, Late, Submitted, Graded, ...) and a color-coded grade. A **Courses** filter picks which courses to show.
 - **Problems**: only what needs attention, in this order: **Missing** (past due, not turned in), **Incomplete** (pass/fail marked ✗), **Late**, **Red scores** (under 50%).
 - **Grades**: graded assignments only, with three dates (Posted, Graded, Last comment), status and grade. A **Sort** button picks which date orders the list (most recent first; default Posted).
@@ -15,6 +16,12 @@ Course names are colored per course. Grades are green (90%+), yellow (70-90%), o
 UW does not allow personal access tokens, so the app opens a normal Canvas/UW login window (NetID + Duo). The session cookies stay in a persistent Electron session on your machine and are used only by the app's main process to call `https://canvas.uw.edu/api/v1/...` with `GET` requests. The interface never sees them. **Sign out** clears the session. When the session expires, the app shows the sign-in screen again.
 
 Requests are throttled (about 150 ms apart) and made only on launch and when you press **Refresh**.
+
+## Calendar feeds
+
+In the Daily tab, **Calendars** lets you paste a `webcal://` or `https://` link (for example from Google Calendar, iCloud or a team calendar). The app downloads the feed in its main process, expands repeating events, and shows the events for the day you pick. Only https is accepted (a `webcal://` link is fetched over https), downloads are limited to 15 seconds and 5 MB, and feeds are cached for 15 minutes (the header **Refresh** button on the Daily tab, or **Refresh feeds** in the Calendars list, forces a new download).
+
+Feed links often contain a private token, so they are saved only in `config/calendar-feeds.json`, which is listed in `.gitignore`, readable only by you, never logged, and never sent to the page (the interface sees just the name and host).
 
 ## Requirements
 
@@ -45,7 +52,9 @@ There is no packaged `.app` yet; the app runs through `npm run dev` or `npm star
 
 ## Where data is stored
 
-In the app's user-data folder (typically `~/Library/Application Support/uw-canvas-dashboard/`): the Canvas login session, and `seen.json`, which remembers what you have already seen of each submission. The Courses selection and Grades sort reset when you restart the app.
+In the app's user-data folder (typically `~/Library/Application Support/uw-canvas-dashboard/`): the Canvas login session, and `seen.json`, which remembers what you have already seen of each submission. Calendar feeds are in `config/calendar-feeds.json` inside the project folder (git-ignored). The Courses selection, Grades sort and selected day reset when you restart the app.
+
+The weekly class schedule is `data/schedule.json`; see `data/README.md` for its format, how to add a term, and how to describe alternate days.
 
 ## Project layout
 
@@ -54,14 +63,19 @@ src/
   main/        Electron main process: login window, Canvas API client, IPC, seen store
     auth/        AuthProvider interface + cookie-session implementation
     canvas/      CanvasClient (GET only, pagination, throttling) and endpoint modules
+    feeds/       calendar feeds: URL checks, download, .ics parsing (ical.js), local config file
     store/       seen.json persistence
   preload/     the small, typed bridge exposed to the UI as window.canvas
-  renderer/    React UI (App, Timeline, Problems, Grades, filters, shared row components)
+  renderer/    React UI (App, Timeline, Daily, Problems, Grades, filters, shared row components)
   shared/      pure, framework-free logic used by both sides and by the tests
     assignments/ status rules, timeline building, formatting, course colors
+    daily/       day layout (overlaps), merging schedule + feeds, deadline carry rules, grid geometry
+    schedule/    schedule file types, validation and resolveDay(date)
     problems/    Problems categories (PROBLEMS list)
     grades/      Grades filtering and sort options
     importance/  earlier ranked-view logic (rules, ranking, change detection); not currently shown in the UI
+data/          schedule.json (weekly class schedule) and its README
+config/        local, git-ignored settings (calendar feeds)
 test/          Vitest tests and Canvas JSON fixtures
 ```
 
@@ -75,10 +89,12 @@ The rules live in small pure modules, so they are easy to change and to test:
 - Grade color thresholds: `GRADE_BANDS` in `src/shared/assignments/format.ts`
 - Status rules (Missing, Due soon, ...): `src/shared/assignments/status.ts`
 - Grades sort options: `GRADE_SORTS` in `src/shared/grades/grades.ts`
+- "Also due soon" windows for the Daily view: `carryWindow` in `src/shared/daily/assignments.ts`; the 9 PM lane start is `LANE_START_HOUR` in `src/renderer/src/Daily.tsx`
 
 ## Notes and limitations
 
 - Only courses in the `available` state are loaded.
 - Late status relies on Canvas's own `late` flag.
+- Class schedule times are read as local wall-clock times, so the Mac is assumed to be in the schedule's time zone (Pacific). Feed events are converted to local time; feeds with a time zone the app does not know are read as local time.
 - Teacher comments need an extra request per course; if that fails, the app shows a banner and the Last comment column is empty for that course.
 - Canvas can change its API or UW can change its login; if sign-in stops working, the login detection in `src/main/auth/CookieSessionAuth.ts` is the place to look.

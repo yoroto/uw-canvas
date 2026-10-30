@@ -2,6 +2,8 @@ import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { CookieSessionAuth } from './auth/CookieSessionAuth'
 import { CanvasClient } from './canvas/CanvasClient'
+import { FeedService } from './feeds/feedService'
+import { FeedStore } from './feeds/feedStore'
 import { registerIpc } from './ipc'
 import { SeenStore } from './store/seenStore'
 
@@ -42,7 +44,9 @@ function createWindow(): void {
 void app.whenReady().then(() => {
   const auth = new CookieSessionAuth(() => mainWindow)
   const client = new CanvasClient(auth)
-  registerIpc(auth, client, new SeenStore(join(app.getPath('userData'), 'seen.json')))
+  // Feed URLs may contain secret tokens, so they live in a git-ignored file in the project folder.
+  const feeds = new FeedService(new FeedStore(join(app.getAppPath(), 'config', 'calendar-feeds.json')))
+  registerIpc(auth, client, new SeenStore(join(app.getPath('userData'), 'seen.json')), feeds)
 
   createWindow()
   app.on('activate', () => {

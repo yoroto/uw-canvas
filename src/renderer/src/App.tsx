@@ -4,23 +4,26 @@ import type { AssignmentsPayload } from '../../shared/assignments/types'
 import { DEFAULT_GRADE_SORT, type GradeSort } from '../../shared/grades/grades'
 import type { IpcResult } from '../../shared/types'
 import { CourseFilter } from './CourseFilter'
+import { Daily } from './Daily'
 import { GradeSortFilter } from './GradeSortFilter'
 import { Grades } from './Grades'
 import { Problems } from './Problems'
 import { Timeline } from './Timeline'
 
 type Phase = 'loading' | 'signedOut' | 'signedIn'
-type View = 'timeline' | 'problems' | 'grades'
+type View = 'daily' | 'timeline' | 'problems' | 'grades'
 
-const VIEW_LABEL: Record<View, string> = { timeline: 'Timeline', problems: 'Problems', grades: 'Grades' }
+const VIEW_LABEL: Record<View, string> = { daily: 'Daily', timeline: 'Timeline', problems: 'Problems', grades: 'Grades' }
 
 export function App(): React.JSX.Element {
   const [phase, setPhase] = useState<Phase>('loading')
-  const [view, setView] = useState<View>('timeline')
+  const [view, setView] = useState<View>('daily')
   const [data, setData] = useState<AssignmentsPayload | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
+  // Bumped by the Refresh button, only while the Daily tab is showing, so it also re-downloads the calendar feeds.
+  const [refreshTick, setRefreshTick] = useState(0)
   const [gradeSort, setGradeSort] = useState<GradeSort>(DEFAULT_GRADE_SORT)
   // Timeline: deselected course ids. Everything is shown by default, including courses that show up later.
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
@@ -90,7 +93,7 @@ export function App(): React.JSX.Element {
           <h1>UW Canvas</h1>
           {phase === 'signedIn' && (
             <nav className="tabs">
-              {(['timeline', 'problems', 'grades'] as const).map((v) => (
+              {(['daily', 'timeline', 'problems', 'grades'] as const).map((v) => (
                 <button key={v} className={view === v ? 'tab active' : 'tab'} aria-pressed={view === v} onClick={() => setView(v)}>
                   {VIEW_LABEL[v]}
                 </button>
@@ -103,7 +106,13 @@ export function App(): React.JSX.Element {
             {busy && <span className="hint">Loading…</span>}
             {view === 'timeline' && <CourseFilter courses={courses} hidden={hidden} onChange={setHidden} />}
             {view === 'grades' && <GradeSortFilter value={gradeSort} onChange={setGradeSort} />}
-            <button onClick={() => void load()} disabled={busy}>
+            <button
+              onClick={() => {
+                if (view === 'daily') setRefreshTick((n) => n + 1)
+                void load()
+              }}
+              disabled={busy}
+            >
               Refresh
             </button>
             <button onClick={() => void signOut()} disabled={busy}>
@@ -138,6 +147,7 @@ export function App(): React.JSX.Element {
           <Timeline items={visibleItems} hues={hues} now={now} />
         </>
       )}
+      {phase === 'signedIn' && view === 'daily' && <Daily items={data?.items ?? []} hues={hues} now={now} refreshTick={refreshTick} />}
       {phase === 'signedIn' && data && view === 'problems' && <Problems items={data.items} hues={hues} now={now} />}
       {phase === 'signedIn' && data && view === 'grades' && <Grades items={data.items} hues={hues} now={now} sort={gradeSort} />}
     </main>

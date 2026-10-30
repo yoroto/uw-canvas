@@ -1,5 +1,6 @@
 // Types and IPC contract shared by main, preload and renderer.
 import type { AssignmentsPayload, Fingerprint } from './assignments/types'
+import type { DayFeedEvents, FeedInfo } from './daily/types'
 
 export interface Term {
   id: string
@@ -39,7 +40,12 @@ export const Channels = {
   authLogout: 'auth:logout',
   coursesList: 'courses:list',
   assignmentsList: 'assignments:list',
-  seenMark: 'seen:mark'
+  seenMark: 'seen:mark',
+  feedsList: 'feeds:list',
+  feedsAdd: 'feeds:add',
+  feedsRemove: 'feeds:remove',
+  feedsRefresh: 'feeds:refresh',
+  feedsEvents: 'feeds:events'
 } as const
 
 // What the renderer sees as `window.canvas`. Add one entry per feature.
@@ -58,5 +64,15 @@ export interface CanvasBridge {
   seen: {
     /** Marks these assignments as seen; resolves to the updated seen map. */
     mark(keys: string[]): Promise<IpcResult<Record<string, Fingerprint>>>
+  }
+  feeds: {
+    list(): Promise<IpcResult<FeedInfo[]>>
+    /** Checks the URL is a calendar feed, then saves it. An empty name uses the feed's own name. */
+    add(name: string, url: string): Promise<IpcResult<{ feed: FeedInfo; upcomingCount: number }>>
+    remove(id: string): Promise<IpcResult<FeedInfo[]>>
+    /** Forget downloaded feeds so the next read fetches them again. */
+    refresh(): Promise<IpcResult<null>>
+    /** Feed events touching a day (YYYY-MM-DD), plus per-feed errors. */
+    events(date: string): Promise<IpcResult<DayFeedEvents>>
   }
 }

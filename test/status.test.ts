@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveStatus, type Status } from '../src/shared/assignments/status'
+import { deriveStatus, requiresSubmission, type Status } from '../src/shared/assignments/status'
 import type { AssignmentView } from '../src/shared/assignments/types'
 import { at, makeAssignment } from './helpers'
 
@@ -25,5 +25,21 @@ const cases: { name: string; over: Partial<AssignmentView>; expected: Status }[]
 describe('deriveStatus', () => {
   it.each(cases)('$name', ({ over, expected }) => {
     expect(deriveStatus(makeAssignment(over), now)).toEqual(expected)
+  })
+})
+
+describe('requiresSubmission', () => {
+  it.each([
+    [['online_upload'], true],
+    [['online_quiz'], true],
+    [['discussion_topic'], true],
+    [['on_paper', 'online_upload'], true],
+    [[], true],
+    [['none'], false],
+    [['on_paper'], false],
+    [['not_graded'], false],
+    [['none', 'on_paper'], false]
+  ])('%j -> %s', (submissionTypes, expected) => {
+    expect(requiresSubmission(makeAssignment({ submissionTypes }))).toBe(expected)
   })
 })

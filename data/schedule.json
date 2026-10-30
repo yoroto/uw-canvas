@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "timezone": "America/Los_Angeles",
+  "terms": [
+    {
+      "id": "2026-fall",
+      "name": "Fall 2026",
+      "startDate": null,
+      "endDate": null,
+      "source": "TS Class Schedule Fall 2026 (Final).docx",
+      "building": {
+        "name": "Robinson Center",
+        "opens": "08:00",
+        "closes": "16:00",
+        "notes": ["The Husky Union Building (HUB) opens at 7am for those who arrive early to campus"]
+      },
+      "weekly": {
+        "monday": [
+          { "start": "08:30", "end": "08:40", "title": "Office Hours by Appt. Only", "kind": "office-hours" },
+          { "start": "08:40", "end": "10:40", "title": "History", "kind": "class" },
+          { "start": "10:50", "end": "11:50", "title": "Precalc", "kind": "class" },
+          { "start": "11:50", "end": "12:30", "title": "Lunch", "kind": "lunch" },
+          { "start": "12:30", "end": "13:00", "title": "Advisory", "kind": "advisory" },
+          { "start": "13:00", "end": "13:30", "title": "Study Session", "detail": "History", "kind": "study-session" },
+          { "start": "13:35", "end": "14:35", "title": "English", "kind": "class" },
+          { "start": "14:40", "end": "15:30", "title": "Office Hours", "kind": "office-hours" }
+        ],
+        "tuesday": [
+          { "start": "08:30", "end": "08:40", "title": "Office Hours by Appt. Only", "kind": "office-hours" },
+          { "start": "08:40", "end": "09:40", "title": "Precalc", "kind": "class" },
+          { "start": "09:50", "end": "11:50", "title": "English", "kind": "class" },
+          { "start": "11:50", "end": "12:30", "title": "Lunch", "kind": "lunch" },
+          { "start": "12:30", "end": "13:30", "title": "Office Hours", "kind": "office-hours" },
+          { "start": "13:35", "end": "15:35", "title": "Biology", "kind": "class" }
+        ],
+        "wednesday": [
+          { "start": "08:30", "end": "08:40", "title": "Office Hours by Appt. Only", "kind": "office-hours" },
+          { "start": "08:40", "end": "09:15", "title": "Office Hours", "kind": "office-hours" },
+          { "start": "09:15", "end": "11:15", "title": "History", "kind": "class" },
+          { "start": "11:20", "end": "11:50", "title": "Advisory", "kind": "advisory" },
+          { "start": "11:50", "end": "12:30", "title": "Lunch", "kind": "lunch" },
+          { "start": "12:30", "end": "13:00", "title": "Ad Hoc", "kind": "ad-hoc" },
+          { "start": "13:00", "end": "13:30", "title": "Study Session", "detail": "English", "kind": "study-session" },
+          { "start": "13:35", "end": "15:00", "title": "Health & Wellness", "kind": "class" },
+          { "start": "15:00", "end": "15:30", "title": "Office Hours", "kind": "office-hours" }
+        ],
+        "thursday": [
+          { "start": "08:30", "end": "08:40", "title": "Office Hours by Appt. Only", "kind": "office-hours" },
+          { "start": "08:40", "end": "10:40", "title": "English", "kind": "class" },
+          { "start": "10:50", "end": "11:50", "title": "Precalc", "kind": "class" },
+          { "start": "11:50", "end": "12:30", "title": "Lunch", "kind": "lunch" },
+          { "start": "12:30", "end": "14:30", "title": "Biology", "kind": "class" },
+          { "start": "14:40", "end": "16:00", "title": "Early Release", "detail": "TS Staff Meeting", "kind": "early-release" }
+        ],
+        "friday": [
+          { "start": "08:30", "end": "08:40", "title": "Office Hours by Appt. Only", "kind": "office-hours" },
+          { "start": "08:40", "end": "10:40", "title": "Precalc", "kind": "class" },
+          { "start": "10:50", "end": "11:50", "title": "History", "kind": "class" },
+          { "start": "11:50", "end": "12:30", "title": "Lunch", "kind": "lunch" },
+          { "start": "12:30", "end": "13:00", "title": "Advisory", "kind": "advisory" },
+          { "start": "13:00", "end": "13:30", "title": "Study Session", "detail": "Biology", "kind": "study-session" },
+          { "start": "13:35", "end": "14:35", "title": "Biology", "kind": "class" },
+          { "start": "14:40", "end": "15:30", "title": "Office Hours", "kind": "office-hours" }
+        ]
+      },
+      "overrides": []
+    }
+  ]
+}

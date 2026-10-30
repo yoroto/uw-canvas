@@ -2,3 +2,5 @@ node_modules
 out
 dist
 .DS_Store
+# Local settings that may hold secret calendar-feed URLs
+config/
