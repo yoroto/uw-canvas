@@ -15,6 +15,8 @@ interface ClientOptions {
   lowQuotaRemaining?: number
   /** The pause between requests while the quota is low. */
   lowQuotaGapMs?: number
+  /** How many requests may be in flight at once (separate loads share this client). */
+  maxConcurrent?: number
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
@@ -24,7 +26,11 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
  * auth, throttling, pagination and error mapping live in one place.
  */
 export class CanvasClient {
-  private queue: Promise<unknown> = Promise.resolve()
+  private active = 0
+  private readonly waiting: (() => void)[] = []
+  /** Earliest time the next request may start. */
+  private nextStart = 0
+  private readonly maxConcurrent: number
   private readonly minGapMs: number
   private readonly perPage: number
   private readonly maxPages: number
@@ -41,6 +47,7 @@ export class CanvasClient {
     this.maxPages = opts.maxPages ?? 100
     this.lowQuotaRemaining = opts.lowQuotaRemaining ?? 100
     this.lowQuotaGapMs = opts.lowQuotaGapMs ?? 1500
+    this.maxConcurrent = Math.max(1, opts.maxConcurrent ?? 3)
   }
 
   /** Single request. `path` is relative to the Canvas origin, e.g. `/api/v1/users/self`. */
@@ -91,12 +98,34 @@ export class CanvasClient {
     return url.toString()
   }
 
-  // Serialise requests with a minimum gap between them (longer while Canvas says the quota is low).
-  private schedule<T>(fn: () => Promise<T>): Promise<T> {
-    const run = this.queue.then(fn)
-    const pause = (): Promise<void> => sleep(this.lowQuota ? this.lowQuotaGapMs : this.minGapMs)
-    this.queue = run.then(pause, pause)
-    return run
+  // At most `maxConcurrent` requests run at once, first come first served, and their starts are at least
+  // `minGapMs` apart (longer while Canvas says the quota is low). Independent loads therefore overlap
+  // instead of queueing behind each other.
+  private acquire(): Promise<void> {
+    if (this.active < this.maxConcurrent) {
+      this.active++
+      return Promise.resolve()
+    }
+    return new Promise((resolve) => this.waiting.push(resolve)) // the slot is handed over when one is released
+  }
+
+  private release(): void {
+    const next = this.waiting.shift()
+    if (next) next()
+    else this.active--
+  }
+
+  private async schedule<T>(fn: () => Promise<T>): Promise<T> {
+    await this.acquire()
+    try {
+      const start = Math.max(Date.now(), this.nextStart)
+      this.nextStart = start + this.minGapMs
+      if (start > Date.now()) await sleep(start - Date.now())
+      return await fn()
+    } finally {
+      if (this.lowQuota) this.nextStart = Math.max(this.nextStart, Date.now() + this.lowQuotaGapMs)
+      this.release()
+    }
   }
 
   private request<T>(url: string): Promise<{ body: T; next: string | null }> {
