@@ -25,6 +25,9 @@ const bridge: CanvasBridge = {
   },
   updates: {
     list: (force) => ipcRenderer.invoke(Channels.updatesList, force)
+  },
+  modules: {
+    list: (courseIds, force) => ipcRenderer.invoke(Channels.modulesList, courseIds, force)
   }
 }
 

@@ -10,6 +10,7 @@ import { GradeSortFilter } from './GradeSortFilter'
 import { Grades } from './Grades'
 import { Problems } from './Problems'
 import { Timeline } from './Timeline'
+import { useCourseModules } from './useCourseModules'
 
 /** While the Daily tab is open, everything is refreshed this often (same as pressing Refresh). */
 const AUTO_REFRESH_MS = 15 * 60 * 1000
@@ -34,6 +35,9 @@ export function App(): React.JSX.Element {
   const [updatesLoading, setUpdatesLoading] = useState(false)
   const [updatesError, setUpdatesError] = useState<string | null>(null)
   const updatesRequest = useRef(0)
+  // The Canvas course behind each class block, with its modules (for the items due on a class day).
+  const signedOut = useCallback(() => setPhase('signedOut'), [])
+  const { state: classCourses, load: loadClassCourses, reset: resetClassCourses } = useCourseModules(signedOut)
   const [gradeSort, setGradeSort] = useState<GradeSort>(DEFAULT_GRADE_SORT)
   // Timeline: deselected course ids. Everything is shown by default, including courses that show up later.
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
@@ -97,14 +101,18 @@ export function App(): React.JSX.Element {
     if (view === 'daily') {
       setRefreshTick((n) => n + 1)
       void loadUpdates(true)
+      void loadClassCourses(true)
     }
     void load()
-  }, [view, load, loadUpdates])
+  }, [view, load, loadUpdates, loadClassCourses])
 
   // Opening the Daily tab loads the course updates (from the 10-minute cache if it is fresh enough).
   useEffect(() => {
-    if (phase === 'signedIn' && view === 'daily') void loadUpdates(false)
-  }, [phase, view, loadUpdates])
+    if (phase === 'signedIn' && view === 'daily') {
+      void loadUpdates(false)
+      void loadClassCourses(false)
+    }
+  }, [phase, view, loadUpdates, loadClassCourses])
 
   // Do the same automatically every 15 minutes while the Daily tab is showing (skipping a round if a load is running).
   const refreshRef = useRef(refresh)
@@ -126,9 +134,10 @@ export function App(): React.JSX.Element {
       else {
         setData(null)
         setCourseUpdates(null)
+        resetClassCourses()
       }
     },
-    [load]
+    [load, resetClassCourses]
   )
 
   useEffect(() => {
@@ -208,6 +217,7 @@ export function App(): React.JSX.Element {
           courseUpdates={courseUpdates}
           updatesLoading={updatesLoading}
           updatesError={updatesError}
+          classCourses={classCourses}
         />}
       {phase === 'signedIn' && data && view === 'problems' && <Problems items={data.items} hues={hues} now={now} />}
       {phase === 'signedIn' && data && view === 'grades' && <Grades items={data.items} hues={hues} now={now} sort={gradeSort} />}

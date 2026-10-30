@@ -71,6 +71,17 @@ export function validateSchedule(raw: unknown): string[] {
     }
     if (isRealDate(t.startDate) && isRealDate(t.endDate) && t.startDate > t.endDate) errors.push(`${tp}: startDate is after endDate`)
 
+    if (t.courseNames !== undefined) {
+      const names = t.courseNames as unknown
+      if (typeof names !== 'object' || names === null || Array.isArray(names)) {
+        errors.push(`${tp}.courseNames: expected an object of class title -> Canvas course name`)
+      } else {
+        for (const [title, name] of Object.entries(names)) {
+          if (typeof name !== 'string' || name.trim() === '') errors.push(`${tp}.courseNames["${title}"]: expected a course name`)
+        }
+      }
+    }
+
     if (t.building) {
       for (const key of ['opens', 'closes'] as const) {
         if (!TIME.test(String(t.building[key]))) errors.push(`${tp}.building.${key}: bad time`)

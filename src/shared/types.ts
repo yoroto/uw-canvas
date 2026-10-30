@@ -1,6 +1,7 @@
 // Types and IPC contract shared by main, preload and renderer.
 import type { AssignmentsPayload, Fingerprint } from './assignments/types'
 import type { DayFeedEvents, FeedInfo } from './daily/types'
+import type { ModulesResult } from './modules/types'
 import type { CourseUpdates } from './updates/updates'
 
 export interface Term {
@@ -47,7 +48,8 @@ export const Channels = {
   feedsRemove: 'feeds:remove',
   feedsRefresh: 'feeds:refresh',
   feedsEvents: 'feeds:events',
-  updatesList: 'updates:list'
+  updatesList: 'updates:list',
+  modulesList: 'modules:list'
 } as const
 
 // What the renderer sees as `window.canvas`. Add one entry per feature.
@@ -80,5 +82,9 @@ export interface CanvasBridge {
   updates: {
     /** Announcements, discussions, files and pages changed in the last 30 days. `force` skips the 10-minute cache. */
     list(force: boolean): Promise<IpcResult<CourseUpdates>>
+  }
+  modules: {
+    /** The modules (with items and due dates) of up to 12 courses, by course id. `force` skips the 30-minute cache. */
+    list(courseIds: string[], force: boolean): Promise<IpcResult<ModulesResult>>
   }
 }

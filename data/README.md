@@ -13,6 +13,7 @@ schedule.json
     startDate    first / last day of the term, "YYYY-MM-DD"; null = open-ended
     endDate
     source       the document the data came from
+    courseNames  class title -> text in the Canvas course name, when it differs ("Precalc": "Precalculus")
     building     opening hours and notes
     weekly       monday ... friday (a missing weekday = no school), each a list of blocks
     overrides[]  exceptions for particular dates
@@ -50,3 +51,7 @@ to `to`, and uses exactly one of:
 - `closed` means no school
 
 Overrides must fall inside the term's dates and must not overlap each other.
+
+## Linking classes to Canvas courses
+
+On the Daily view each `class` block is matched to a Canvas course by its title: the course whose name contains the title as whole words (an exact name wins over a longer one). When Canvas names the course differently, add the wording to the term's `courseNames`, for example `"Precalc": "Precalculus"`. The matched course supplies the clickable module items that are due on that day.

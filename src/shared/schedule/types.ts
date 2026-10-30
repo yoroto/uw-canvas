@@ -55,6 +55,11 @@ export interface Term {
   /** The file this was extracted from. */
   source?: string
   building?: Building
+  /**
+   * For class blocks: the text to look for in the Canvas course name, when it differs from the block's
+   * title (for example "Precalc" -> "Precalculus"). Titles that are not listed are looked up as written.
+   */
+  courseNames?: Record<string, string>
   /** Weekly pattern. A weekday that is missing has no school. */
   weekly: Partial<Record<Weekday, ScheduleBlock[]>>
   overrides: Override[]

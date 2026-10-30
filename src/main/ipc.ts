@@ -5,6 +5,7 @@ import { listAssignments } from './canvas/assignments'
 import { listCourses } from './canvas/courses'
 import type { CanvasClient } from './canvas/CanvasClient'
 import { CanvasError } from './errors'
+import type { ModulesService } from './canvas/modules'
 import type { UpdatesService } from './canvas/updates'
 import type { FeedService } from './feeds/feedService'
 import type { SeenStore } from './store/seenStore'
@@ -36,13 +37,22 @@ function asString(value: unknown, what: string): string {
   return value
 }
 
+const MAX_COURSES = 12
+
+function asCourseIds(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length > MAX_COURSES || !value.every((v) => typeof v === 'string' && /^\d+$/.test(v))) {
+    throw new CanvasError('unknown', 'Expected up to 12 numeric course ids')
+  }
+  return value
+}
+
 function asDate(value: unknown): string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new CanvasError('unknown', 'Expected a date as YYYY-MM-DD')
   return value
 }
 
 /** One line per feature: register new endpoints here and in `CanvasBridge`. */
-export function registerIpc(auth: AuthProvider, client: CanvasClient, seenStore: SeenStore, feeds: FeedService, updates: UpdatesService): void {
+export function registerIpc(auth: AuthProvider, client: CanvasClient, seenStore: SeenStore, feeds: FeedService, updates: UpdatesService, modules: ModulesService): void {
   handle(Channels.authStatus, async () => ({ signedIn: await auth.isSignedIn() }))
   handle(Channels.authLogin, async () => ({ signedIn: await auth.signIn() }))
   handle(Channels.authLogout, async () => {
@@ -67,4 +77,5 @@ export function registerIpc(auth: AuthProvider, client: CanvasClient, seenStore:
   handle(Channels.feedsEvents, (date: unknown) => feeds.eventsForDay(asDate(date)))
 
   handle(Channels.updatesList, (force: unknown) => updates.list(force === true))
+  handle(Channels.modulesList, (ids: unknown, force: unknown) => modules.list(asCourseIds(ids), force === true))
 }

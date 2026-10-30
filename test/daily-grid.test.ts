@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { carriedListTop, DAY_MINUTES, HOUR_PX, hourLabel, initialScrollHour, minutesIntoDay, pxForMinutes } from '../src/shared/daily/grid'
+import { carriedListTop, DAY_MINUTES, HOUR_PX, hourLabel, initialScrollHour, linesThatFit, minutesIntoDay, planItemLines, pxForMinutes } from '../src/shared/daily/grid'
 
 const start = new Date(2026, 9, 26)
 const end = new Date(2026, 9, 27)
@@ -67,5 +67,29 @@ describe('carriedListTop', () => {
     const lowest = pxForMinutes(23 * 60 + 59)
     expect(carriedListTop([pxForMinutes(10 * 60), pxForMinutes(22 * 60), lowest], nine)).toBe(lowest + 8)
     expect(carriedListTop([pxForMinutes(21 * 60 + 30)], nine, 4)).toBe(pxForMinutes(21 * 60 + 30) + 4)
+  })
+})
+
+describe('linesThatFit / planItemLines', () => {
+  it('counts the lines left under the title and time', () => {
+    expect(linesThatFit(18)).toBe(0)
+    expect(linesThatFit(52)).toBe(1)
+    expect(linesThatFit(112)).toBe(4)
+    expect(linesThatFit(0)).toBe(0)
+  })
+
+  it('lists everything when it fits', () => {
+    expect(planItemLines(3, 112)).toEqual({ visible: 3, more: 0 })
+    expect(planItemLines(0, 18)).toEqual({ visible: 0, more: 0 })
+  })
+
+  it('turns the last line into "+N more" when not everything fits', () => {
+    expect(planItemLines(6, 112)).toEqual({ visible: 3, more: 3 })
+    expect(planItemLines(5, 84)).toEqual({ visible: 2, more: 3 }) // 3 lines: 2 items + the "more" line
+  })
+
+  it('shows only a toggle in a block too short for two lines', () => {
+    expect(planItemLines(2, 52)).toEqual({ visible: 0, more: 2 })
+    expect(planItemLines(2, 20)).toEqual({ visible: 0, more: 2 })
   })
 })

@@ -8,6 +8,9 @@
       "startDate": null,
       "endDate": null,
       "source": "TS Class Schedule Fall 2026 (Final).docx",
+      "courseNames": {
+        "Precalc": "Precalculus"
+      },
       "building": {
         "name": "Robinson Center",
         "opens": "08:00",

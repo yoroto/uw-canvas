@@ -4,16 +4,18 @@ import { dayKeyOf } from '../../shared/assignments/timeline'
 import type { AssignmentView } from '../../shared/assignments/types'
 import { assignmentsForDay, dayRange } from '../../shared/daily/assignments'
 import { dayOptions, shiftDay } from '../../shared/daily/days'
-import { carriedListTop, HOUR_PX, hourLabel, initialScrollHour, minutesIntoDay, pxForMinutes } from '../../shared/daily/grid'
+import { carriedListTop, HOUR_PX, hourLabel, initialScrollHour, minutesIntoDay, planItemLines, pxForMinutes } from '../../shared/daily/grid'
 import { layoutEvents } from '../../shared/daily/layout'
 import { mergeDay } from '../../shared/daily/merge'
 import type { CalEvent, DayFeedEvents, FeedInfo, PlacedEvent } from '../../shared/daily/types'
 import { resolveDay } from '../../shared/schedule/schedule'
 import type { ScheduleFile } from '../../shared/schedule/types'
+import { itemsDueOnDay, moduleItemTypeLabel, type DayModuleItem } from '../../shared/modules/dayItems'
 import { AssignmentChip } from './AssignmentChip'
 import { assignmentUpdates, updatesForDay, type CourseUpdates } from '../../shared/updates/updates'
 import { UpdatesPanel } from './UpdatesPanel'
 import { FeedsManager } from './FeedsManager'
+import { classCourseKey, type ClassCourse, type CourseModulesState } from './useCourseModules'
 
 const schedule = scheduleData as unknown as ScheduleFile
 
@@ -38,9 +40,11 @@ interface Props {
   courseUpdates: CourseUpdates | null
   updatesLoading: boolean
   updatesError: string | null
+  /** The Canvas course behind each class block, with its modules (loaded by App). */
+  classCourses: CourseModulesState
 }
 
-export function Daily({ items, hues, now, refreshTick, courseUpdates, updatesLoading, updatesError }: Props): React.JSX.Element {
+export function Daily({ items, hues, now, refreshTick, courseUpdates, updatesLoading, updatesError, classCourses }: Props): React.JSX.Element {
   const todayKey = dayKeyOf(now)
   const [date, setDate] = useState(todayKey)
   const [feeds, setFeeds] = useState<FeedInfo[]>([])
@@ -155,12 +159,15 @@ export function Daily({ items, hues, now, refreshTick, courseUpdates, updatesLoa
           </button>
         </div>
         <div className="actions">
-          {loading && <span className="hint">Loading…</span>}
+          {(loading || classCourses.loading) && (
+            <span className="hint">{classCourses.loading && !loading ? 'Loading module items…' : 'Loading…'}</span>
+          )}
           <FeedsManager feeds={feeds} onFeedsChange={setFeeds} onRefreshed={() => setReload((n) => n + 1)} />
         </div>
       </div>
 
       {loadError && <p className="error">{loadError}</p>}
+      {classCourses.error && <p className="error">Course modules: {classCourses.error}</p>}
       {feedDay.errors.map((e) => (
         <p key={e.feedId} className="error">
           Could not load “{e.feedName}”: {e.message}
@@ -203,9 +210,22 @@ export function Daily({ items, hues, now, refreshTick, courseUpdates, updatesLoa
                   <div className="off-hours" style={{ top: y(calendar.hours.closes), bottom: 0 }} />
                 </>
               )}
-              {left.map((p) => (
-                <EventBlock key={p.event.id} placed={p} color={p.event.feedId ? feedColor.get(p.event.feedId) : undefined} y={y} />
-              ))}
+              {left.map((p) => {
+                const isClass = p.event.source === 'class' && p.event.kind === 'class'
+                const course = isClass && day.term ? classCourses.byClass.get(classCourseKey(day.term.id, p.event.title)) : undefined
+                return (
+                  <EventBlock
+                    key={p.event.id}
+                    placed={p}
+                    color={p.event.feedId ? feedColor.get(p.event.feedId) : undefined}
+                    y={y}
+                    course={course}
+                    unmatched={isClass && !course && classCourses.loadedAt !== null && !classCourses.loading}
+                    loadingItems={isClass && !course && classCourses.loading}
+                    moduleItems={course ? itemsDueOnDay(course.modules, date) : []}
+                  />
+                )
+              })}
             </div>
 
             <div className="col col-right">
@@ -274,20 +294,43 @@ interface BlockProps {
   placed: PlacedEvent<CalEvent>
   color?: string
   y: (t: Date) => number
+  /** Class blocks: the Canvas course this block was matched to. */
+  course?: ClassCourse
+  /** Class blocks: no Canvas course matched the title. */
+  unmatched?: boolean
+  /** The courses and their modules are still loading for the first time. */
+  loadingItems?: boolean
+  /** Module items due on this day for the matched course. */
+  moduleItems: DayModuleItem[]
 }
 
-function EventBlock({ placed, color, y }: BlockProps): React.JSX.Element {
+function EventBlock({ placed, color, y, course, unmatched, loadingItems, moduleItems }: BlockProps): React.JSX.Element {
   const { event: e, column, columns } = placed
+  const [open, setOpen] = useState(false)
   const start = new Date(e.start)
   const end = new Date(e.end)
   const top = y(start)
   const height = Math.max(y(end) - top, 18)
   const range = `${timeText(start)} – ${timeText(end)}`
+  const plan = planItemLines(moduleItems.length, height)
+  const shown = open ? moduleItems : moduleItems.slice(0, plan.visible)
+  const canvasNote = course
+    ? `Canvas course: ${course.course.name}${course.ambiguous ? ' (several courses fit; check the aliases in data/schedule.json)' : ''}`
+    : unmatched
+      ? `No matching Canvas course found for "${e.title}"`
+      : ''
+  const blockStyle: Record<string, string | number | undefined> = {
+    top,
+    ...(open ? { minHeight: height } : { height }),
+    left: `${(column / columns) * 100}%`,
+    width: `calc(${100 / columns}% - 3px)`,
+    '--c': color
+  }
   return (
     <div
-      className={`event ${e.source === 'class' ? `kind-${e.kind ?? 'class'}` : 'feed'}`}
-      style={{ top, height, left: `${(column / columns) * 100}%`, width: `calc(${100 / columns}% - 3px)`, '--c': color } as React.CSSProperties}
-      title={`${e.title}${e.detail ? ` (${e.detail})` : ''}\n${range}${e.location ? `\n${e.location}` : ''}`}
+      className={`event ${e.source === 'class' ? `kind-${e.kind ?? 'class'}` : 'feed'}${open ? ' expanded' : ''}`}
+      style={blockStyle as React.CSSProperties}
+      title={`${e.title}${e.detail ? ` (${e.detail})` : ''}\n${range}${e.location ? `\n${e.location}` : ''}${canvasNote ? `\n${canvasNote}` : ''}`}
     >
       <div className="event-title">
         {e.title}
@@ -295,6 +338,34 @@ function EventBlock({ placed, color, y }: BlockProps): React.JSX.Element {
       </div>
       {height >= 34 && <div className="event-time">{range}</div>}
       {height >= 50 && e.location ? <div className="event-time">{e.location}</div> : null}
+      {loadingItems && (
+        <div className="event-loading" role="status">
+          Loading module items…
+        </div>
+      )}
+      {shown.map(({ item, moduleName, due }) => (
+        <a
+          key={item.id}
+          className="event-item"
+          href={item.htmlUrl}
+          target="_blank"
+          rel="noreferrer"
+          title={`${moduleItemTypeLabel(item.type)}: ${item.title}\n${moduleName}\nDue ${due.toLocaleString()}`}
+        >
+          <span className="event-item-type">{moduleItemTypeLabel(item.type)}</span>
+          {item.title}
+        </a>
+      ))}
+      {!open && plan.more > 0 && (
+        <button className="event-more" onClick={() => setOpen(true)}>
+          {plan.visible > 0 ? `+${plan.more} more` : `${plan.more} due`} ▾
+        </button>
+      )}
+      {open && (
+        <button className="event-more" onClick={() => setOpen(false)}>
+          Show less ▴
+        </button>
+      )}
     </div>
   )
 }

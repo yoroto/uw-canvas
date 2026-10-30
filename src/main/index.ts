@@ -4,6 +4,7 @@ import { CookieKeeper } from './auth/cookieKeeper'
 import { CookieSessionAuth } from './auth/CookieSessionAuth'
 import { CookieVault } from './auth/cookieVault'
 import { CanvasClient } from './canvas/CanvasClient'
+import { ModulesService } from './canvas/modules'
 import { UpdatesService } from './canvas/updates'
 import { SESSION_PARTITION } from './config'
 import { FeedService } from './feeds/feedService'
@@ -68,7 +69,7 @@ void app.whenReady().then(() => {
   const client = new CanvasClient(auth)
   // Feed URLs may contain secret tokens, so they live in a git-ignored file in the project folder.
   const feeds = new FeedService(new FeedStore(join(app.getAppPath(), 'config', 'calendar-feeds.json')))
-  registerIpc(auth, client, new SeenStore(join(app.getPath('userData'), 'seen.json')), feeds, new UpdatesService(client))
+  registerIpc(auth, client, new SeenStore(join(app.getPath('userData'), 'seen.json')), feeds, new UpdatesService(client), new ModulesService(client))
 
   createWindow()
   app.on('activate', () => {

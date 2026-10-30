@@ -944,3 +944,78 @@ button.seen {
   border-bottom: 1px solid var(--border);
   font-size: 11px;
 }
+
+/* Module items inside class blocks: small boxes in a lighter shade of the block, in the normal text color. */
+
+.event-item,
+.event-more {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 15px;
+  margin: 0 0 1px;
+  padding: 0 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-size: 11px;
+  line-height: 13px;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--c, #0a7aff) 45%, transparent);
+  background: color-mix(in srgb, Canvas 78%, var(--c, #0a7aff));
+  color: CanvasText;
+  text-decoration: none;
+}
+
+a.event-item:hover,
+.event-more:hover {
+  background: color-mix(in srgb, Canvas 60%, var(--c, #0a7aff));
+}
+
+.event-item-type {
+  margin-right: 5px;
+  font-weight: 650;
+  color: color-mix(in srgb, var(--c, #0a7aff) 70%, CanvasText);
+}
+
+.event-more {
+  border-style: dashed;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.event.expanded {
+  z-index: 8;
+  overflow: visible;
+  box-shadow: 0 4px 14px #0005;
+  background: color-mix(in srgb, var(--c, #0a7aff) 22%, Canvas);
+}
+
+.event-loading {
+  box-sizing: border-box;
+  height: 15px;
+  margin: 0 0 1px;
+  padding: 0 5px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 13px;
+  font-style: italic;
+  border-radius: 3px;
+  border: 1px dashed color-mix(in srgb, var(--c, #0a7aff) 45%, transparent);
+  color: CanvasText;
+  opacity: 0.75;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .event-loading {
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
