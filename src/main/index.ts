@@ -14,8 +14,10 @@ let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 720,
+    width: 1500,
+    height: 860,
+    minWidth: 900,
+    minHeight: 500,
     title: 'UW Canvas Dashboard',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
