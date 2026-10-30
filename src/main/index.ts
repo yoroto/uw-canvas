@@ -1,7 +1,10 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, safeStorage, session, shell } from 'electron'
 import { join } from 'node:path'
+import { CookieKeeper } from './auth/cookieKeeper'
 import { CookieSessionAuth } from './auth/CookieSessionAuth'
+import { CookieVault } from './auth/cookieVault'
 import { CanvasClient } from './canvas/CanvasClient'
+import { SESSION_PARTITION } from './config'
 import { FeedService } from './feeds/feedService'
 import { FeedStore } from './feeds/feedStore'
 import { registerIpc } from './ipc'
@@ -42,7 +45,23 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(() => {
-  const auth = new CookieSessionAuth(() => mainWindow)
+  // Keep the Canvas login between runs: cookies are saved encrypted with a key from the macOS Keychain.
+  const ses = session.fromPartition(SESSION_PARTITION)
+  const keeper = new CookieKeeper(
+    {
+      all: () => ses.cookies.get({}),
+      set: (c) => ses.cookies.set(c as Electron.CookiesSetDetails),
+      onChange: (listener) => {
+        ses.cookies.on('changed', () => listener())
+      }
+    },
+    new CookieVault(join(app.getPath('userData'), 'session-cookies.bin'), {
+      isAvailable: () => safeStorage.isEncryptionAvailable(),
+      encrypt: (text) => safeStorage.encryptString(text),
+      decrypt: (data) => safeStorage.decryptString(data)
+    })
+  )
+  const auth = new CookieSessionAuth(() => mainWindow, keeper)
   const client = new CanvasClient(auth)
   // Feed URLs may contain secret tokens, so they live in a git-ignored file in the project folder.
   const feeds = new FeedService(new FeedStore(join(app.getAppPath(), 'config', 'calendar-feeds.json')))

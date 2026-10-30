@@ -13,7 +13,9 @@ Course names are colored per course. Grades are green (90%+), yellow (70-90%), o
 
 ## How it signs in
 
-UW does not allow personal access tokens, so the app opens a normal Canvas/UW login window (NetID + Duo). The session cookies stay in a persistent Electron session on your machine and are used only by the app's main process to call `https://canvas.uw.edu/api/v1/...` with `GET` requests. The interface never sees them. **Sign out** clears the session. When the session expires, the app shows the sign-in screen again.
+UW does not allow personal access tokens, so the app opens a normal Canvas/UW login window (NetID + Duo). The session cookies are used only by the app's main process to call `https://canvas.uw.edu/api/v1/...` with `GET` requests. The interface never sees them.
+
+**Staying signed in:** Canvas's login cookies are session cookies, which a browser engine forgets when the app quits. So the app saves them itself, encrypted with a key from the macOS Keychain (Electron `safeStorage`), in `session-cookies.bin` in the app's user-data folder, and puts them back on the next start. They are re-saved shortly after they change, because Canvas renews its session cookie as you use it. A saved login older than 14 days is ignored. If the Keychain cannot encrypt, nothing is saved and you sign in each time. Whether the restored session still works is up to Canvas and UW (they expire sessions on their side); when it does not, the app shows the sign-in screen. **Sign out** clears the session and deletes the saved file.
 
 Requests are throttled (about 150 ms apart) and made only on launch and when you press **Refresh**.
 
@@ -52,7 +54,7 @@ There is no packaged `.app` yet; the app runs through `npm run dev` or `npm star
 
 ## Where data is stored
 
-In the app's user-data folder (typically `~/Library/Application Support/uw-canvas-dashboard/`): the Canvas login session, and `seen.json`, which remembers what you have already seen of each submission. Calendar feeds are in `config/calendar-feeds.json` inside the project folder (git-ignored). The Courses selection, Grades sort and selected day reset when you restart the app.
+In the app's user-data folder (typically `~/Library/Application Support/uw-canvas-dashboard/`): the encrypted Canvas login (`session-cookies.bin`), and `seen.json`, which remembers what you have already seen of each submission. Calendar feeds are in `config/calendar-feeds.json` inside the project folder (git-ignored). The Courses selection, Grades sort and selected day reset when you restart the app.
 
 The weekly class schedule is `data/schedule.json`; see `data/README.md` for its format, how to add a term, and how to describe alternate days.
 

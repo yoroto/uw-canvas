@@ -2,24 +2,39 @@ import { BrowserWindow, session, type Session } from 'electron'
 import { CANVAS_HOST, CANVAS_ORIGIN, SESSION_PARTITION } from '../config'
 import { CanvasError } from '../errors'
 import type { AuthProvider } from './AuthProvider'
+import type { CookieKeeper } from './cookieKeeper'
 
 const PROBE_PATH = '/api/v1/users/self'
 
 /**
  * Signs in through a real Canvas/UW SSO page in a dedicated window and reuses
- * the resulting cookies (kept in a persistent session partition) for API calls.
- * The renderer never sees the cookies.
+ * the resulting cookies for API calls. The renderer never sees the cookies.
+ * With a `keeper`, the login survives restarts: the cookies are saved encrypted
+ * (OS keychain) and put back on the next start.
  */
 export class CookieSessionAuth implements AuthProvider {
   private readonly ses: Session = session.fromPartition(SESSION_PARTITION)
   private pendingSignIn: Promise<boolean> | null = null
+  /** Resolves once saved cookies (if any) are back in the session. */
+  private readonly ready: Promise<void>
 
-  constructor(private readonly getParent: () => BrowserWindow | null) {}
+  constructor(
+    private readonly getParent: () => BrowserWindow | null,
+    private readonly keeper?: CookieKeeper
+  ) {
+    this.ready = keeper
+      ? keeper
+          .restore()
+          .then(() => keeper.watch())
+          .catch(() => undefined)
+      : Promise.resolve()
+  }
 
   async fetch(url: string, init: RequestInit = {}): Promise<Response> {
     if (new URL(url).origin !== CANVAS_ORIGIN) {
       throw new CanvasError('unknown', `Refusing to send credentials to ${new URL(url).origin}`)
     }
+    await this.ready
     try {
       return await this.ses.fetch(url, { ...init, redirect: 'manual' })
     } catch (e) {
@@ -44,6 +59,7 @@ export class CookieSessionAuth implements AuthProvider {
   async signOut(): Promise<void> {
     await this.ses.clearStorageData()
     await this.ses.clearCache()
+    this.keeper?.forget()
   }
 
   private async runLoginWindow(): Promise<boolean> {
